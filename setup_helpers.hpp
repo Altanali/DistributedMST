@@ -43,8 +43,13 @@ void dump_json_to_datafile(json obj, string out_filename) {
 	ofs.close();
 }
 
-
 void raise_error(string error_message) {
+	cerr << error_message << endl;
+	exit(-1);
+}
+
+void raise_error(string context, string error_message) {
+	fprintf(stderr, "%s: %s\n", context.c_str(), strerror(errno));
 	cerr << error_message << endl;
 	exit(-1);
 }

@@ -41,6 +41,7 @@ int main(int argc, char *argv[]) {
 		{2, {0}}
 	};
 	vector<int> server_fds(num_nodes);
+	vector<int> node_fds(num_nodes);
 	vector<int> server_addreses(num_nodes);
 	vector<pid_t> node_pids(num_nodes);
 	string node_executable = "./node";
@@ -52,7 +53,13 @@ int main(int argc, char *argv[]) {
 	int address_base = 8080;
 	int coordinator_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if(coordinator_fd == -1) raise_error("Coordinator failed to create socket.");
-	setsockopt(coordinator_fd, SOL_SOCKET, SO_REUSEADDR, NULL, 0); //Allows us to reuse same socket between program instances.
+
+	//Allows us to reuse same socket between program instances.
+	int optval = 1;
+	if((setsockopt(coordinator_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &optval, sizeof(optval)) < 0)) {
+			raise_error("setsockopt", "Coordinator failed to set socket options.");
+	}
+	
 	struct sockaddr_in coordinator_address = {AF_INET, htons(address_base), INADDR_ANY};
 	if(bind(coordinator_fd, (struct sockaddr *)&coordinator_address, sizeof(coordinator_address)) == -1) {
 		fprintf(stderr, "bind: %s\n", strerror(errno));
@@ -108,12 +115,30 @@ int main(int argc, char *argv[]) {
 	// Wait till all nodes have reached out.
 	int num_connections = 0;
 	while(num_connections < num_nodes) {
-		cout << accept(coordinator_fd, NULL, 0) << endl;
+		int fd = accept(coordinator_fd, NULL, 0);
+		if(fd < 0)
+			raise_error("accept", "Coordinator failed to accept a node's connection.");
+		node_fds[num_connections] = fd;
 		++num_connections;
 	}
+
+	//Send children the go-ahead to begin
+	char message[] = "hello world";
+	size_t msg_len = strlen(message);
+	for(int node_fd : node_fds) {
+		cout << "in: " << node_fd << endl;
+		if(send(node_fd, message, msg_len, 0) < 0) {
+			cout << "hellllp" << endl;
+			raise_error("send", "Coordinator failed to send message to node.");
+		}
+		cout << "out: " << node_fd << endl;
+
+	}
 	
+	cout << "hi";
 	for(pid_t pid : node_pids) {
 		int status;
+		cout << "waiting for " << pid << endl;
 		waitpid(pid, &status, 0);
 		if(WIFEXITED(status))
 			cout << "Child " << pid <<  " died with wexit status: " << WEXITSTATUS(status) << endl;
