@@ -11,35 +11,29 @@
 #include <arpa/inet.h>
 #include <fstream>
 #include "json.hpp"
-#include <argparse/argparse.hpp>
 #include "setup_helpers.hpp"
+#include "graph_helpers.hpp"
 
 using namespace std;
 using json =  nlohmann::json;
-
-void setup_basic_graph_datafile(int, unordered_map<int, vector<int>> &, vector<int> &, vector<struct sockaddr_in>, string);
-
-void setup_argument_parser(argparse::ArgumentParser &program, int argc, char *argv[]) {
-	program.add_argument("--num_nodes").help("Number of nodes in graph instance.").scan<'i', int>();
-	try {
-		program.parse_args(argc, argv);
-	} 
-	catch (const std::exception &err) {
-		cerr << err.what() << endl;
-		exit(1);
-	}
-}
 
 int main(int argc, char *argv[]) {
 	argparse::ArgumentParser program("distributed_mst");
 	setup_argument_parser(program, argc, argv);
 	
 	int num_nodes = program.get<int>("--num_nodes");
-	unordered_map<int, vector<int>> graph = {
+	std::unordered_map<int, vector<int>> g = {
 		{0, {1, 2}}, 
 		{1, {0}},
 		{2, {0}}
 	};
+
+	UndirectedGraph undirected_graph;
+	json node_data_jsons;
+	init_random_undirected(undirected_graph, num_nodes);
+	print_undirected_graph(undirected_graph);
+	undirected_graph_to_json(undirected_graph, node_data_jsons);
+
 	vector<int> server_fds(num_nodes);
 	vector<int> node_fds(num_nodes);
 	vector<int> server_addreses(num_nodes);
@@ -75,18 +69,15 @@ int main(int argc, char *argv[]) {
 
 
 	
-	json node_data_jsons;
 	for(int i = 0; i < num_nodes; ++i) {
 		//Create Process and exec(node.exe)
-		json node_data;
+		json &node_data = node_data_jsons[to_string(i)];
 		server_fds[i] = socket(AF_INET, SOCK_STREAM, 0);
 		server_addreses[i] = htons(address_base + 1 + i); 
 
-		node_data["neighbors"] = graph[i];
 		node_data["server_fd"] = server_fds[i];
 		node_data["server_address"] = address_base + i + 1;
 
-		node_data_jsons[to_string(i)] = node_data;
 	}
 	network_data_json["nodeData"] = node_data_jsons;
 	dump_json_to_datafile(network_data_json, temp_data_filename);
@@ -123,19 +114,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	//Send children the go-ahead to begin
-	char message[] = "hello world";
+	char message[] = "1\0";
 	size_t msg_len = strlen(message);
 	for(int node_fd : node_fds) {
-		cout << "in: " << node_fd << endl;
 		if(send(node_fd, message, msg_len, 0) < 0) {
-			cout << "hellllp" << endl;
 			raise_error("send", "Coordinator failed to send message to node.");
 		}
-		cout << "out: " << node_fd << endl;
 
 	}
 	
-	cout << "hi";
 	for(pid_t pid : node_pids) {
 		int status;
 		cout << "waiting for " << pid << endl;

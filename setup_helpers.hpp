@@ -5,10 +5,23 @@
 #include <netinet/in.h> 
 #include <fstream>
 #include <iostream>
+#include <argparse/argparse.hpp>
 
 using namespace std;
 using json = nlohmann::json;
 
+
+void setup_argument_parser(argparse::ArgumentParser &program, int argc, char *argv[]) {
+	program.add_argument("--num_nodes").help("Number of nodes in graph instance.").scan<'i', int>();
+	
+	try {
+		program.parse_args(argc, argv);
+	} 
+	catch (const std::exception &err) {
+		cerr << err.what() << endl;
+		exit(1);
+	}
+}
 
 void setup_basic_graph_datafile(int num_nodes, 
 								unordered_map<int, vector<int>> &graph, 

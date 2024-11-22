@@ -54,11 +54,15 @@ int main(int argc, char **argv) {
     }
     
     char recv_buffer[RECV_BUFFER_LENGTH];
-    if(recv(coordination_sock, &recv_buffer, RECV_BUFFER_LENGTH, 0) < 0) {
+    if(recv(coordination_sock, recv_buffer, RECV_BUFFER_LENGTH, 0) < 0) {
         raise_error("receive", "Node " + to_string(node_id) + " failed to receive message from coordinator.");
-    } else {
-        cout << "received from coordinator: " << recv_buffer << endl;
-    }
+    } else if(strcmp(recv_buffer, "1\0") != 0) {
+        raise_error("Coordinator cancelled program execution.");
+    } 
+
+
+    //Connect to Neighbors
+    
 
     exit(0);
 
