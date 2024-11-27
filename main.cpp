@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <arpa/inet.h>
 #include <fstream>
+#include <thread>
 #include "json.hpp"
 #include "setup_helpers.hpp"
 #include "graph_helpers.hpp"
@@ -17,6 +18,17 @@
 using namespace std;
 using json =  nlohmann::json;
 
+void listen_for_dead_children() {
+	int status;
+	pid_t pid;
+	while(true) {
+		pid = wait(&status);
+		if(pid == -1) return;
+		if(WEXITSTATUS(status) == 255) {
+			raise_error("Child died badly.");
+		}
+	}
+}
 int main(int argc, char *argv[]) {
 	argparse::ArgumentParser program("distributed_mst");
 	setup_argument_parser(program, argc, argv);
@@ -102,6 +114,7 @@ int main(int argc, char *argv[]) {
 			node_pids[node_i] = pid;
 		}
 	}
+	thread nanny(listen_for_dead_children);
 
 	// Wait till all nodes have reached out.
 	int num_connections = 0;
@@ -125,12 +138,11 @@ int main(int argc, char *argv[]) {
 	
 	for(pid_t pid : node_pids) {
 		int status;
-		cout << "waiting for " << pid << endl;
 		waitpid(pid, &status, 0);
-		if(WIFEXITED(status))
-			cout << "Child " << pid <<  " died with wexit status: " << WEXITSTATUS(status) << endl;
+		if(WIFEXITED(status) == 255)
+			raise_error("Child died badly.");
 	}
-
+	nanny.join();
 	close(coordinator_fd);
 	for(int fd : server_fds) close(fd);
 }

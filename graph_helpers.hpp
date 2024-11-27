@@ -13,6 +13,7 @@ using namespace boost;
 using json = nlohmann::json;
 typedef boost::property<edge_weight_t, int> EdgeWeightProperty;
 typedef boost::adjacency_list<vecS, vecS, undirectedS, no_property, EdgeWeightProperty> UndirectedGraph;
+typedef UndirectedGraph::edge_descriptor Edge;
 
 
 void init_random_undirected(
@@ -20,7 +21,7 @@ void init_random_undirected(
 		int num_nodes, 
 		int num_edges = -1, 
 		int min_weight = 0,
-		int max_weight = 0, 
+		int max_weight = 100, 
 		bool connected = false
 ) {
 	graph.clear();
@@ -47,17 +48,23 @@ void init_random_undirected(
 
 void undirected_graph_to_json(UndirectedGraph &graph, json &obj) {
 	UndirectedGraph::vertex_iterator v_iter, v_end;
+	auto weight_map = get(edge_weight, graph);
 	for(tie(v_iter, v_end) = vertices(graph); v_iter != v_end; ++v_iter) {
-		cout << *v_iter << "\n\t";
 		graph_traits<UndirectedGraph>::adjacency_iterator adj_iter, adj_end;
-		vector<int> neighbors_i;
+		vector<json> neighbors_i;
 		tie(adj_iter, adj_end) = adjacent_vertices(*v_iter, graph);
-		for(; adj_iter != adj_end; ++adj_iter) {
-			neighbors_i.push_back(*adj_iter); //probably a better way to do this
-			cout << *adj_iter << "\t";
+		for(; adj_iter != adj_end; ++adj_iter) {	
+			json neighbor_obj;
+			int neighbor_id = *adj_iter;
+			pair<Edge, bool> ed = boost::edge(*v_iter, *adj_iter, graph);
+			cout << get(edge_weight, graph, ed.first) << endl;
+
+			int edge_weight = weight_map[ed.first];
+			neighbor_obj["id"] = neighbor_id;
+			neighbor_obj["weight"] = edge_weight;
+			neighbors_i.push_back(neighbor_obj); //probably a better way to do this
 		}
 		obj[to_string(*v_iter)] = {{"neighbors", neighbors_i}};
-		cout << endl; 
 	}
 
 }

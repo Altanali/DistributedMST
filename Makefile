@@ -1,5 +1,5 @@
 CC = g++
-CCFLAGS = -std=c++17
+CCFLAGS = -std=c++17 -pthread
 BOOST = ~/boost_1_82_0/boost
 
 
