@@ -29,6 +29,7 @@ void listen_for_dead_children() {
 		}
 	}
 }
+
 int main(int argc, char *argv[]) {
 	argparse::ArgumentParser program("distributed_mst");
 	setup_argument_parser(program, argc, argv);
@@ -46,11 +47,11 @@ int main(int argc, char *argv[]) {
 	print_undirected_graph(undirected_graph);
 	undirected_graph_to_json(undirected_graph, node_data_jsons);
 
-	vector<int> server_fds(num_nodes);
 	vector<int> node_fds(num_nodes);
 	vector<int> server_addreses(num_nodes);
 	vector<pid_t> node_pids(num_nodes);
-	string node_executable = "./node";
+	string node_executable = "python3";
+	string py_file = "node.py";
 	string temp_data_filename = "temp.json";
 
 
@@ -75,19 +76,15 @@ int main(int argc, char *argv[]) {
 
 
 	json network_data_json;
-	network_data_json["coordinatorData"] = {
-		{"server_fd", coordinator_fd}, {"server_address", address_base}
-	};
+	network_data_json["coordinatorData"] = {{"server_address", address_base}};
 
 
 	
 	for(int i = 0; i < num_nodes; ++i) {
 		//Create Process and exec(node.exe)
 		json &node_data = node_data_jsons[to_string(i)];
-		server_fds[i] = socket(AF_INET, SOCK_STREAM, 0);
 		server_addreses[i] = htons(address_base + 1 + i); 
 
-		node_data["server_fd"] = server_fds[i];
 		node_data["server_address"] = address_base + i + 1;
 
 	}
@@ -104,7 +101,7 @@ int main(int argc, char *argv[]) {
 		if(pid == 0) {
 			//Exec Node
 			char *args[] = {
-				(char *)node_executable.c_str(), (char *)(to_string(node_i).c_str()), (char *)temp_data_filename.c_str(), nullptr
+				(char *)node_executable.c_str(), (char *)py_file.c_str(), (char *)(to_string(node_i).c_str()), (char *)temp_data_filename.c_str(), nullptr
 			};
 			if(execvp(args[0], args) == -1) {
 				perror("excecvp failed");
@@ -117,6 +114,7 @@ int main(int argc, char *argv[]) {
 	thread nanny(listen_for_dead_children);
 
 	// Wait till all nodes have reached out.
+	cout << "Waiting for children to connect." << endl;
 	int num_connections = 0;
 	while(num_connections < num_nodes) {
 		int fd = accept(coordinator_fd, NULL, 0);
@@ -129,7 +127,16 @@ int main(int argc, char *argv[]) {
 	//Send children the go-ahead to begin
 	char message[] = "1\0";
 	size_t msg_len = strlen(message);
-	for(int node_fd : node_fds) {
+	int pick_starter_node = 5; //Pick a random later.
+	for(int i = 0; i < num_nodes; ++i) {
+		int node_fd = node_fds[i];
+
+		if(i == 0) {
+			if(send(node_fd, "2\0", msg_len, 0) < 0) {
+				raise_error("send", "Coordinator failed to send message to node.");
+			}
+			continue;
+		}
 		if(send(node_fd, message, msg_len, 0) < 0) {
 			raise_error("send", "Coordinator failed to send message to node.");
 		}
@@ -144,7 +151,6 @@ int main(int argc, char *argv[]) {
 	}
 	nanny.join();
 	close(coordinator_fd);
-	for(int fd : server_fds) close(fd);
 }
 
 
