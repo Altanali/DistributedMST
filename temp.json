@@ -1,0 +1,1 @@
+{"coordinatorData": {"server_address": 8080}, "nodeData": {"0": {"neighbors": [{"id": 1, "weight": 5}, {"id": 2, "weight": 1}], "server_address": 8081}, "1": {"neighbors": [{"id": 0, "weight": 5}], "server_address": 8082}, "2": {"neighbors": [{"id": 0, "weight": 1}], "server_address": 8083}}}
