@@ -24,6 +24,8 @@ class Edge:
 	weight: int = 0
 	directed: bool = False
 	state: EdgeState = EdgeState.BASIC
+	WEIGHT_INFINITY: int = sys.maxsize
+
 
 
 
@@ -45,6 +47,7 @@ class Node:
 		REJECT = 5
 		REPORT = 6
 		CHANGE_ROOT = 7
+		HALT = 8
 
 	def __init__(self, id: int, data_filename: str):
 		self.id = id
@@ -54,7 +57,7 @@ class Node:
 		self.level = 0
 		self.fragment_number = 0
 		self.best_edge = None
-		self.best_weight = None
+		self.best_weight = Edge.WEIGHT_INFINITY
 		self.test_edge = None
 		self.in_branch = None
 		self.find_count = 0
@@ -107,10 +110,13 @@ class Node:
 				sock.connect((Node.NETWORK_HOST, edge.address))
 				sock.send(bytes(str(self.id), "utf8"))
 				edge.out_socket = sock
+				if sock == None:
+					print("FAILED TO CREATE SOCKET!")
 			except Exception as errno:
 				print("Connection to neighbors failed: ", errno)
-				sys.exit(-1)
-
+				os._exit(-1)
+		for edge in self.out_edges.values():
+			assert edge.out_socket is not None
 
 	def accept_neighbor_connections(self):
 		num_neighbors = len(self.out_edges)
@@ -126,6 +132,7 @@ class Node:
 	def _init_node_port(self):
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		print("trying to bind to ", self.port)
 		self.sock.bind(('', self.port))
 		self.sock.listen(1)
 
@@ -140,6 +147,7 @@ class Node:
 			print("Coordinator terminated program execution.")
 			sys.exit(-1)
 
+
 	def execute_GHS(self):
 		if self._is_init_node:
 			self.wakeup()
@@ -148,7 +156,6 @@ class Node:
 	
 	
 	def send_message_to_neighbor(self, neighbor: int, message: object, operation: int = 0):
-		print(f"{self.id} is sending message {self.Operation(operation).name} to {neighbor} with message {str(message)}")
 		message_data = {
 			"id": self.id,
 			"operation": operation ,
@@ -157,6 +164,7 @@ class Node:
 		message_string = json.dumps(message_data)
 		edge = self.out_edges[neighbor]
 		out_socket = edge.out_socket
+		print(f"{self.id} is sending message {self.Operation(operation).name} to {neighbor} with message {str(message)} on {out_socket.fileno()}")
 		out_socket.send(bytes(message_string, "utf8"))
 
 	def sleep(self):
@@ -179,10 +187,14 @@ class Node:
 				self._process_report(obj)
 			elif operation == self.Operation.CHANGE_ROOT:
 				self._change_root()
+			elif operation == self.Operation.HALT:
+				self.halt(1)
 
 
 	def wakeup(self):
 		self.status = self.NodeState.FOUND
+		self.level = 0
+		self.find_count = 0
 		#Find minimum weight edge:
 		min_edge_neighbor = min(self.out_edges.keys(), key = lambda v: self.out_edges[v].weight)
 		min_edge = self.out_edges[min_edge_neighbor]
@@ -195,7 +207,7 @@ class Node:
 			self.wakeup()
 		message = obj["message"]
 		level = message["level"]
-		other_id = obj["id"]
+		other_id = obj["id"] 
 		edge = self.out_edges[other_id]
 		if level < self.level:
 			edge.state = Edge.EdgeState.BRANCH
@@ -212,11 +224,11 @@ class Node:
 		self.level = message["level"]
 		self.fragment_number = message["fragmentNumber"]
 		self.status = self.NodeState(message["status"])
+		self.best_weight = Edge.WEIGHT_INFINITY
 		other_id = obj["id"]
 		edge = self.out_edges[other_id]
 		self.in_branch = edge
 		self.best_edge = None
-		self.best_weight = -1
 		for neighbor, edge in self.out_edges.items():
 			if neighbor == other_id or edge.state != Edge.EdgeState.BRANCH:
 				continue
@@ -244,7 +256,7 @@ class Node:
 			edge = self.out_edges[other_id]
 			if edge.state == Edge.EdgeState.BASIC:
 				edge.state = Edge.EdgeState.REJECTED
-			if self.test_edge != edge:
+			if self.test_edge != edge: #TODO: What is Test Edge at this point?
 				self._send_reject(other_id)
 			else:
 				self._test()
@@ -253,7 +265,7 @@ class Node:
 		self.test_edge = None
 		other_id = obj["id"]
 		edge = self.out_edges[other_id]
-		if ((not self.best_edge) or edge.weight < self.best_weight):
+		if (edge.weight < self.best_weight):
 			self.best_edge = edge
 			self.best_weight = edge.weight
 		self._report()
@@ -280,11 +292,11 @@ class Node:
 
 		elif self.status == self.NodeState.FIND:
 			self.message_queue.put(obj)
-		elif weight > self.best_weight:
+		elif weight > self.best_weight or (weight == -1 and self.best_weight != -1):
 			self._change_root()
-		elif weight == self.best_weight == -1:
-				print("HALTING")
-				exit(-1) #TODO: figure this out
+		elif weight == self.best_weight == Edge.WEIGHT_INFINITY:
+				# print(f"{self.id} is HALTING")
+				self.halt() #TODO: figure this out
 
 
 	def _change_root(self):
@@ -296,7 +308,7 @@ class Node:
 
 
 	def _test(self):
-		print(f"{self.id} is calling test().")
+		# print(f"{self.id} is calling test().")
 		minimum_basic_edge = None
 		min_key = None
 		for key, edge in self.out_edges.items():
@@ -362,7 +374,8 @@ class Node:
 
 	def _message_queue_daemon(self):
 		while True:
-			readlist = self.sockets_to_neighbors.keys()
+			readlist = list(self.sockets_to_neighbors.keys())
+			readlist.append(self.coordination_sock)
 			readable, _, _ = select.select(readlist, [], [])
 			for sock in readable:
 				data = sock.recv(Node.BUFFER_LENGTH).decode().strip()
@@ -370,10 +383,21 @@ class Node:
 					continue
 				try:
 					obj = json.loads(data)
+					if sock == self.coordination_sock:
+						self.message_queue.empty()
+						self.message_queue.put(obj)
+						return
 					self.message_queue.put(obj)
 				except:
 					continue
 	
+	
+	def halt(self, exit_code: int = 0):
+		#Print all BRANCH edges
+		for key, edge in self.out_edges.items():
+			if edge.state == Edge.EdgeState.BRANCH:
+				print(f"({self.id}, {key}) is in MST.")
+		os._exit(exit_code)
 
 
 
