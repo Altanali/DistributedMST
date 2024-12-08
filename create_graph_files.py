@@ -36,5 +36,6 @@ if __name__ == "__main__":
 	graph_to_amir_file(graph, amir_out)
 	graph_to_std_file(graph, graph_out)
 
-	mst = graph_helpers.compute_mst(graph, out_file=folder_name.joinpath("mst.png"))
+	mst = graph_helpers.compute_mst(graph)
+	graph_helpers.draw_graph(mst, out_file=folder_name.joinpath("mst.png"))
 	graph_helpers.draw_graph(graph, out_file=folder_name.joinpath("graph.png"))

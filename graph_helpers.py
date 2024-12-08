@@ -6,6 +6,39 @@ import random
 from pathlib import Path
 
 def graph_to_obj(graph: nx.Graph):
+	"""
+	Turns an input graph into an object with the structure: 
+	{
+		"1": {
+			"neighbors": [
+				{
+					"id": 2,
+					"weight": 4
+				},
+				{
+					"id": 3, 
+					"weight": 5
+				}
+			]
+		},
+		"2": {
+			"neighbors": [
+				{
+					"id": 1, 
+					"weight": 4
+				}
+			]
+		}
+		"3": {
+			"neighbors": [
+				{
+					"id": 1, 
+					"weight": 5
+				}
+			]
+		}
+	}
+	"""
 	obj = defaultdict(dict)
 	for u, v in graph.edges:
 		weight = graph[u][v]["weight"]
@@ -24,12 +57,22 @@ def graph_to_obj(graph: nx.Graph):
 		obj[str(v)]["neighbors"] = neighbors_v
 	return obj
 
-def compute_mst(graph: nx.Graph, algo: str="prim", out_file: Union[str, Path]="mst.png"):
+
+def compute_mst(graph: nx.Graph, algo: str="prim") -> nx.Graph:
+	"""
+	Returns the MST of the input graph.
+		args:
+			graph (nx.Graph): Graph to compute the MST of
+			algo (str): Can be "prim", "kruskal", or "boruvka"
+	"""
 	mst = nx.minimum_spanning_tree(graph, algorithm=algo)
-	draw_graph(mst, out_file)
 	return mst
 
-def draw_graph(graph, out_file: str="graph.png"):
+
+def draw_graph(graph: nx.Graph, out_file: str="graph.png") -> None:
+	"""
+	Draws the input graph and saves the resulting image in out_file.
+	"""
 	plt.clf()
 	pos=nx.spring_layout(graph)
 	nx.draw(graph, pos, with_labels=True)
@@ -38,7 +81,11 @@ def draw_graph(graph, out_file: str="graph.png"):
 	nx.draw_networkx_nodes(graph, pos)
 	plt.savefig(out_file, format="png")
 
-def random_connected_graph(num_nodes: int, p_edge: float = 0.5):
+
+def random_connected_graph(num_nodes: int, p_edge: float = 0.5) -> nx.Graph:
+	"""
+	Creates a random graph with num_nodes vertices where each edge has probability 0.5 of being included. 
+	"""
 	#Create Random Connected Graph
 	graph: nx.Graph
 	while True:
