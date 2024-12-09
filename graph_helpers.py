@@ -10,6 +10,7 @@ def graph_to_obj(graph: nx.Graph):
 	Turns an input graph into an object with the structure: 
 	{
 		"1": {
+			"name": 1
 			"neighbors": [
 				{
 					"id": 2,

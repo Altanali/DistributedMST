@@ -3,6 +3,7 @@ import json
 import threading
 import copy
 import queue
+from collections import defaultdict
 
 ROOT_LIST = None
 ORIGINAL_GRAPH = None
@@ -29,15 +30,32 @@ def get_json_data(file_path):
     except IOError:
         print(f"Error: Could not read the file '{file_path}'.")
 
+def preprocess_graph(graph_data):
+    global ROOT_LIST, ORIGINAL_GRAPH, CURRENT_GRAPH
+    ROOT_LIST = list(range(len(graph_data)))
+
+    #change graph_data keys to ints
+    ORIGINAL_GRAPH = defaultdict(dict)
+    for node_id, node_data in graph_data.items():
+        ORIGINAL_GRAPH[int(node_id)] = node_data
+        for neighbor in node_data["neighbors"]:
+            neighbor["u"] = int(node_id)
+            neighbor["v"] = neighbor["id"]
+            neighbor["u_component"] = int(node_id)
+            neighbor["v_component"] = neighbor["id"]
+            neighbor.pop("id")
+
+    CURRENT_GRAPH = copy.deepcopy(graph_data)
+
 def step_1(neighbors, own_id):
     best = neighbors[0]
     for neighbor in neighbors:
-        if neighbor.get("weight") < best.get("weight"):
+        if neighbor["weight"] < best["weight"]:
             best = neighbor
     
     global ROOT_LIST, MST_EDGES
     ROOT_LIST[own_id] = best.get("id")
-    MST_EDGES.put((own_id, best.get("id"), best.get("weight")))
+    MST_EDGES.put((best["u"], best["v"], best["weight"]))
 
 def point_to_root(non_root, roots):
     pointers = [ROOT_LIST[i] for i in non_root]
@@ -53,45 +71,47 @@ def step_3(id):
     CURRENT_GRAPH[id]["name"] = ROOT_LIST[id]
 
 def step_4(id):
-    for node_id, node_data in CURRENT_GRAPH.items():
-        if id == node_data.get("name"):
+    for node_id, node_data in CURRENT_GRAPH.copy():
+        if id == node_data["name"]:
             for neighbor in node_data.get("neighbors"):
-                neighbor["id"] = ROOT_LIST[neighbor["id"]]
+                neighbor["u_component"] = id
+                neighbor["v_component"] = ROOT_LIST[neighbor["v_component"]]
+                #Want root neighbors += (root, neighbor's root)
                 CURRENT_GRAPH[id]["neighbors"].append(neighbor)
             CURRENT_GRAPH.pop(node_id)
             
-def step_5(neighbors):
-    neighbors.sort(key=lambda x: x["id"])
+def step_5(id, neighbors):
+    neighbors.sort(key=lambda x: x["v_component"])
     prev = None
     best = None
-    for neighbor in neighbors:
-        if neighbor.get("id") == prev:
+    for neighbor in neighbors.copy():
+        if neighbor["v_component"] == id:
+            neighbors.remove(neighbor)
+        elif neighbor["v_component"] == prev:
             if best["weight"] > neighbor["weight"]:
                 neighbors.remove(best)
                 best = neighbor
             else:
                 neighbors.remove(neighbor)
         else:
-            prev = neighbor.get("id")
+            prev = neighbor["v_component"]
             best = neighbor
 
 
 # each step will be internally multithreaded
 def boruvka(graph_data):
-    global ROOT_LIST, ORIGINAL_GRAPH, CURRENT_GRAPH
-    ROOT_LIST = list(range(len(graph_data)))
-    ORIGINAL_GRAPH = graph_data
-    CURRENT_GRAPH = copy.deepcopy(graph_data)
+    preprocess_graph(graph_data)
 
     while len(CURRENT_GRAPH) > 1:
         # Step 1: get the min_weight edge in vertex
         threads = []
         for node_id, node_data in CURRENT_GRAPH.items():
             neighbors = node_data.get("neighbors", [])
+            step_1(neighbors, node_id)
             #NOTE TO SELF: IS NODE_ID A STR OR INT, WILL THIS AFFECT ANYTHING?
-            thread = threading.Thread(target=step_1, args=(neighbors, node_id))
-            threads.append(thread)
-            thread.start()
+            # thread = threading.Thread(target=step_1, args=(neighbors, node_id))
+            # threads.append(thread)
+            # thread.start()
 
         #wait for threads to finish at each step
 
@@ -124,7 +144,7 @@ def boruvka(graph_data):
         for node_id, node_data in CURRENT_GRAPH.items():
             # TODO: multithread this
             neighbors = node_data.get("neighbors", [])
-            step_5(neighbors)
+            step_5(node_id, neighbors)
         
 
 def spawn_threads(graph_data):
