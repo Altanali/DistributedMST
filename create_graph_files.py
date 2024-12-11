@@ -10,17 +10,23 @@ def graph_to_amir_file(graph, filename):
 			f.write(str(u) + " " + str(v) + " " + str(graph[u][v]["weight"]) +" 0\n")
 
 def graph_to_std_file(graph, filename):
-	obj = defaultdict(list)
+	obj = defaultdict(dict)
 	for u, v in graph.edges:
 		weight = graph[u][v]["weight"]
-		obj[str(u)].append({
-			"neighbor": v,
+		u_neighbors = obj[str(u)].get("neighbors", [])
+		u_neighbors.append({
+			"id": v,
 			"weight": weight
 		})
-		obj[str(v)].append({
-			"neighbor": u,
+		obj[str(u)]["neighbors"] = u_neighbors
+
+		v_neighbors = obj[str(v)].get("neighbors", [])
+		v_neighbors.append({
+			"id": u,
 			"weight": weight
 		})
+		obj[str(v)]["neighbors"] = v_neighbors
+
 	with open(filename, "w+") as f:
 		f.write(json.dumps(obj))
 
