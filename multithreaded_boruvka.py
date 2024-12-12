@@ -119,6 +119,10 @@ def step_5(id, neighbors):
 
 # each step will be internally multithreaded
 def boruvka(graph_data):
+    global CURRENT_GRAPH, ROOT_LIST, ORIGINAL_GRAPH
+    ROOT_LIST = None
+    ORIGINAL_GRAPH = None
+    CURRENT_GRAPH = None
     preprocess_graph(graph_data)
 
     while len(CURRENT_GRAPH) > 1:
@@ -221,8 +225,12 @@ def remove_duplicate_edges():
     
     return edges
 
+import time
 if __name__ == "__main__":
     file_path = get_args().file 
     json_data = get_json_data(file_path)
+    start = time.time()
     boruvka(json_data)
+    end = time.time()
+    print(end - start)
     

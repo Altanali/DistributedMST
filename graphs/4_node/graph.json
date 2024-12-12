@@ -1,0 +1,1 @@
+{"0": {"neighbors": [{"id": 1, "weight": 11}, {"id": 3, "weight": 1}]}, "1": {"neighbors": [{"id": 0, "weight": 11}, {"id": 3, "weight": 5}]}, "3": {"neighbors": [{"id": 0, "weight": 1}, {"id": 1, "weight": 5}, {"id": 2, "weight": 6}]}, "2": {"neighbors": [{"id": 3, "weight": 6}]}}

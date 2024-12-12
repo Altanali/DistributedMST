@@ -129,33 +129,40 @@ def step_5(id, neighbors):
 def thread_boruvka(tid):
 
     # Step 1
-    chunk = len(CURRENT_GRAPH) / NUM_THREAD + 1
-    for i in range(tid * chunk, (tid + 1) * chunk):
+    chunk = len(CURRENT_GRAPH) // NUM_THREAD + 1
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
         step_1(CURRENT_GRAPH[i]["neighbors"], i)
+    
+    print(f"{tid}, STEP_1")
     STEP_1_BARRIER.wait()
+    print(f"{tid}, STEP ROOT")
     STEP_ROOT_BARRIER.wait()
 
     # Step 2
-    chunk = len(NON_ROOTS) / NUM_THREAD + 1
-    for i in range(tid * chunk, (tid + 1) * chunk):
+    chunk = len(NON_ROOTS) // NUM_THREAD + 1
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
         step_2(NON_ROOTS, ROOTS, i)
+    print(f"{tid}, STEP_2")
     STEP_2_BARRIER.wait()
 
     # Step 3
-    for i in range(tid * chunk, (tid + 1) * chunk):
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
         step_3(i)
+    print(f"{tid}, STEP_3")
     STEP_3_BARRIER.wait()
 
     # Step 4
-    chunk = len(ROOTS) / NUM_THREAD + 1
-    for i in range(tid * chunk, (tid + 1) * chunk):
+    chunk = len(ROOTS) // NUM_THREAD + 1
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
         step_4(i)
+    print(f"{tid}, STEP_4")
     STEP_4_BARRIER.wait()
 
     # Step 5 
-    chunk = len(CURRENT_GRAPH) / NUM_THREAD + 1
-    for i in range(tid * chunk, (tid + 1) * chunk):
+    chunk = len(CURRENT_GRAPH) // NUM_THREAD + 1
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
         step_5(i, CURRENT_GRAPH[i]["neighbors"])
+    print(f"{tid}, STEP_5")
     STEP_5_BARRIER.wait()
 
 # each step will be internally multithreaded
@@ -184,11 +191,13 @@ def boruvka(graph_data):
         STEP_5_BARRIER = threading.Barrier(NUM_THREAD + 1)
 
         for i in range(NUM_THREAD):
-            thread = threading.Thread(target=thread_boruvka, args=(i))
+            thread = threading.Thread(target=thread_boruvka, args=(i,))
             threads.append(thread)
             thread.start()
 
         #wait for threads to finish at each step
+        print("MAIN, STEP_1")
+
         STEP_1_BARRIER.wait()
 
         # THE FOLLOWING IS NOT LISTED IN THE PARALLEL ALGO IN PAPER
@@ -199,7 +208,9 @@ def boruvka(graph_data):
         ROOTS = set([i for i in range(len(ROOT_LIST)) if i == ROOT_LIST[i]])
         NON_ROOTS = set(list(range(len(ROOT_LIST)))) - ROOTS
 
+        print("MAIN, STEP_ROOT")
         STEP_ROOT_BARRIER.wait()
+        print("MAIN, STEP_5")
         STEP_5_BARRIER.wait()
 
         # # Step 2: find new root
