@@ -6,7 +6,7 @@ import queue
 from collections import defaultdict
 from pprint import pprint
 
-NUM_THREAD = 1
+NUM_THREAD = 10
 STEP_1_BARRIER = None
 STEP_ROOT_BARRIER = None
 STEP_2_BARRIER = None
@@ -73,12 +73,13 @@ def point_to_root(non_root, roots):
     pointers = [ROOT_LIST[i] for i in non_root]
     return set(pointers).issubset(roots)
 
-def step_2(non_root, roots, id):
+def step_2(non_root, roots, start, end):
     # print("step_2 in")
     while (not point_to_root(non_root, roots)):
         global ROOT_LIST
         # for temp in non_root: #Remove when we multithread
-        ROOT_LIST[id] = ROOT_LIST[ROOT_LIST[id]]
+        for id in range(start, end):
+            ROOT_LIST[NON_ROOTS[id]] = ROOT_LIST[ROOT_LIST[NON_ROOTS[id]]]
     # print("step_2 out")
 
 def step_3(id):
@@ -88,7 +89,6 @@ def step_3(id):
     # print("step_3 out")
 
 def step_4(id):
-    # print("step_4 in")
     for node_id, node_data in CURRENT_GRAPH.copy().items():
         if id == node_data["name"]:
             if id != node_id:
@@ -127,42 +127,36 @@ def step_5(id, neighbors):
     # print("step_5 out")
 
 def thread_boruvka(tid):
-
+    current_keys = list(CURRENT_GRAPH.keys())
     # Step 1
     chunk = len(CURRENT_GRAPH) // NUM_THREAD + 1
     for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
-        step_1(CURRENT_GRAPH[i]["neighbors"], i)
+        step_1(CURRENT_GRAPH[current_keys[i]]["neighbors"], current_keys[i])
     
-    print(f"{tid}, STEP_1")
     STEP_1_BARRIER.wait()
-    print(f"{tid}, STEP ROOT")
     STEP_ROOT_BARRIER.wait()
 
     # Step 2
     chunk = len(NON_ROOTS) // NUM_THREAD + 1
-    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
-        step_2(NON_ROOTS, ROOTS, i)
-    print(f"{tid}, STEP_2")
+    step_2(NON_ROOTS, ROOTS, tid * chunk, min((tid + 1) * chunk, len(NON_ROOTS)))
     STEP_2_BARRIER.wait()
 
     # Step 3
-    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
-        step_3(i)
-    print(f"{tid}, STEP_3")
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(NON_ROOTS))):
+        step_3(NON_ROOTS[i])
     STEP_3_BARRIER.wait()
 
     # Step 4
     chunk = len(ROOTS) // NUM_THREAD + 1
-    for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
-        step_4(i)
-    print(f"{tid}, STEP_4")
+    for i in range(tid * chunk, min((tid + 1) * chunk, len(ROOTS))):
+        step_4(ROOTS[i])
     STEP_4_BARRIER.wait()
 
     # Step 5 
+    current_keys = list(CURRENT_GRAPH.keys())
     chunk = len(CURRENT_GRAPH) // NUM_THREAD + 1
     for i in range(tid * chunk, min((tid + 1) * chunk, len(CURRENT_GRAPH))):
-        step_5(i, CURRENT_GRAPH[i]["neighbors"])
-    print(f"{tid}, STEP_5")
+        step_5(current_keys[i], CURRENT_GRAPH[current_keys[i]]["neighbors"])
     STEP_5_BARRIER.wait()
 
 # each step will be internally multithreaded
@@ -175,13 +169,6 @@ def boruvka(graph_data):
     while len(CURRENT_GRAPH) > 1:
         # Step 1: get the min_weight edge in vertex
         threads: list[threading.Thread] = []
-        # for node_id, node_data in CURRENT_GRAPH.items():
-        #     neighbors = node_data.get("neighbors", [])
-        #     # step_1(neighbors, node_id)
-        #     #NOTE TO SELF: IS NODE_ID A STR OR INT, WILL THIS AFFECT ANYTHING?
-        #     thread = threading.Thread(target=step_1, args=(neighbors, node_id))
-        #     threads.append(thread)
-        #     thread.start()
 
         STEP_1_BARRIER = threading.Barrier(NUM_THREAD + 1)
         STEP_ROOT_BARRIER = threading.Barrier(NUM_THREAD + 1)
@@ -196,7 +183,6 @@ def boruvka(graph_data):
             thread.start()
 
         #wait for threads to finish at each step
-        print("MAIN, STEP_1")
 
         STEP_1_BARRIER.wait()
 
@@ -206,62 +192,11 @@ def boruvka(graph_data):
                 ROOT_LIST[i] = i
 
         ROOTS = set([i for i in range(len(ROOT_LIST)) if i == ROOT_LIST[i]])
-        NON_ROOTS = set(list(range(len(ROOT_LIST)))) - ROOTS
+        NON_ROOTS = list(set(list(range(len(ROOT_LIST)))) - ROOTS)
+        ROOTS = list(ROOTS)
 
-        print("MAIN, STEP_ROOT")
         STEP_ROOT_BARRIER.wait()
-        print("MAIN, STEP_5")
         STEP_5_BARRIER.wait()
-
-        # # Step 2: find new root
-        # for id in non_roots:    
-        #     # TODO: multithread this
-        #     # step_2(non_roots, roots, id)
-        #     thread = threading.Thread(target=step_2, args=(non_roots, roots, id))
-        #     threads.append(thread)
-        #     thread.start()
-
-        # for thread in threads:
-        #     thread.join()
-        # threads.clear()
-
-        # # Step 3: 
-        # for non_root in non_roots:
-        #     # TODO: check if types work
-        #     # TODO: multithread this
-        #     # step_3(non_root)
-        #     thread = threading.Thread(target=step_3, args=(non_root,))
-        #     threads.append(thread)
-        #     thread.start()
-
-        # for thread in threads:
-        #     thread.join()
-        # threads.clear()
-        # # Step 4:
-        # for root in roots:
-        #     # only roots execute so only they append to their own edgelists
-        #     # TODO: multithread this
-        #     # step_4(root)
-        #     thread = threading.Thread(target=step_4, args=(root,))
-        #     threads.append(thread)
-        #     thread.start()
-            
-        # for thread in threads:
-        #     thread.join()
-        # threads.clear()
-
-        # # Step 5:
-        # for node_id, node_data in CURRENT_GRAPH.items():
-        #     # TODO: multithread this
-        #     neighbors = node_data.get("neighbors", [])
-        #     # step_5(node_id, neighbors)
-        #     thread = threading.Thread(target=step_5, args=(node_id, neighbors))
-        #     threads.append(thread)
-        #     thread.start()
-            
-        # for thread in threads:
-        #     thread.join()
-        # threads.clear()
         
     edges = remove_duplicate_edges()
     print(edges)
