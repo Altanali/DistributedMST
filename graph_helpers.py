@@ -83,14 +83,17 @@ def draw_graph(graph: nx.Graph, out_file: str="graph.png") -> None:
 	plt.savefig(out_file, format="png")
 
 
-def random_connected_graph(num_nodes: int, p_edge: float = 0.5) -> nx.Graph:
+def random_connected_graph(num_nodes: int, p_edge: float = 0.5, m = None) -> nx.Graph:
 	"""
 	Creates a random graph with num_nodes vertices where each edge has probability 0.5 of being included. 
 	"""
 	#Create Random Connected Graph
 	graph: nx.Graph
 	while True:
-		graph = nx.erdos_renyi_graph(num_nodes, p_edge)
+		if m is None:
+			graph = nx.erdos_renyi_graph(num_nodes, p_edge)
+		else: 
+			graph = nx.ra
 		if nx.is_connected(graph):
 			break
 		#Add Unique Weights to graph
