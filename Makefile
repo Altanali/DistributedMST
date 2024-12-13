@@ -14,6 +14,8 @@ node: node.cpp $(HELPER_FILES)
 sample: testgraph.cpp
 	$(CC) $(CCFLAGS) $< -o $@ -I $(BOOST)
 
+seq_boruvka: boruvka.o
+	g++ $^ -o $@ -O3 -lpthread
 
 .PHONY: clean
 
